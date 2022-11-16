@@ -1,4 +1,5 @@
 #include <iostream>
+#include <fstream>
 #include <thread>
 #include <winsock2.h>
 #include "log.h"
@@ -13,16 +14,31 @@ int main(int argc, char *argv[]) {
     }
 
     // sender
-    // program.exe server <port>
-    if (argc == 3 && std::string_view(argv[1]) == "server") {
+    // program.exe server <port> <filename>
+    if (argc == 4 && std::string_view(argv[1]) == "server") {
         // arg parse
         uint16_t port = std::stoi(argv[2]);
+        std::string filename = argv[3];
 
-        const auto sendBufferSize = MAX_PACKET_SIZE * 10;
-        auto mem = std::make_unique<uint8_t[]>(sendBufferSize);
-        memset(mem.get(), 0, sendBufferSize);
+        // open file
+        std::ifstream f(filename, std::ios::binary);
+        if (!f.is_open()) {
+            std::cout << "file not found: " << filename << std::endl;
+            return 1;
+        }
+
+        // get file size
+        f.seekg(0, std::ios::end);
+        int fileSize = f.tellg();
+
+        // read file
+        auto mem = std::make_unique<uint8_t[]>(fileSize);
+        f.seekg(0, std::ios::beg);
+        f.read((char *) mem.get(), fileSize);
+
+        // send file
         Reliable reliable = ReliableHelper::listen(port);
-        reliable.send(mem.get(), sendBufferSize);
+        reliable.send(mem.get(), fileSize);
     }
 
     // receiver
@@ -32,12 +48,16 @@ int main(int argc, char *argv[]) {
         std::string ip = argv[2];
         uint16_t port = std::stoi(argv[3]);
 
-        const auto recvBufferSize = MAX_PACKET_SIZE * 20;
+        const auto recvBufferSize = 20 * 1024 * 1024; // 20M
         auto mem = std::make_unique<uint8_t[]>(recvBufferSize);
         memset(mem.get(), 0xff, recvBufferSize);
         Reliable reliable = ReliableHelper::connect(ip, port);
         int received = reliable.recv(mem.get(), recvBufferSize);
         LOG << "received " << received << " bytes" << std::endl;
+
+        // write to file
+        std::ofstream f("received.zip", std::ios::binary);
+        f.write((char *) mem.get(), received);
     }
 
     WSACleanup();
