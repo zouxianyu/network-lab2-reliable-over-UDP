@@ -5,7 +5,7 @@
 #include <type_traits>
 #include <memory>
 
-#define MAX_PACKET_SIZE (1024)
+#define MAX_PACKET_SIZE (10240)
 
 #pragma pack(push, 1)
 
