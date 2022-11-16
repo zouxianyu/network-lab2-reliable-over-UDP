@@ -95,7 +95,7 @@ inline static uint32_t seqFlip(uint32_t seq) {
 }
 
 bool Reliable::send(uint8_t *buf, int len) {
-    const auto waitTime = std::chrono::milliseconds(50);
+    const auto waitTime = std::chrono::milliseconds(20);
     const int dataSize = MAX_PACKET_SIZE - sizeof(Packet);
 
     uint32_t seq = 0;
@@ -107,8 +107,9 @@ bool Reliable::send(uint8_t *buf, int len) {
 
         std::mutex m;
         std::condition_variable cv;
+        bool ackReceived = false;
 
-        std::thread sender([this, &m, &cv, seq, sliceBuf, sliceLen, waitTime] {
+        std::thread sender([this, &m, &cv, &ackReceived, seq, sliceBuf, sliceLen, waitTime] {
             std::unique_lock lock(m);
             do {
                 LOG << "sending slice " << seq << std::endl;
@@ -118,18 +119,20 @@ bool Reliable::send(uint8_t *buf, int len) {
                         sliceBuf,
                         sliceLen
                 ));
-            } while (cv.wait_for(lock, waitTime) == std::cv_status::timeout);
+            } while (!cv.wait_for(lock, waitTime,[&]{return ackReceived;}));
+            LOG << "slice " << seq << " sent successfully" << std::endl;
         });
 
-        std::thread ackReceiver([this, &cv, seq] {
+        std::thread ackReceiver([this, &m, &cv, &ackReceived, seq] {
             while (true) {
                 auto packet = unreliable.recv();
                 if (packet &&
                     PacketHelper::isValidPacket(packet) &&
                     packet->type == PacketType::ACK &&
                     packet->num == seq) {
-
+                    std::lock_guard lock(m);
                     LOG << "received ACK " << seq << std::endl;
+                    ackReceived = true;
                     cv.notify_one();
                     break;
                 }
@@ -139,7 +142,6 @@ bool Reliable::send(uint8_t *buf, int len) {
         sender.join();
         ackReceiver.join();
 
-        LOG << "slice " << seq << " sent successfully" << std::endl;
     }
 
     if (!unreliable.send(PacketHelper::makePacket(PacketType::FIN))) {
@@ -180,7 +182,7 @@ int Reliable::recv(uint8_t *buf, int len) {
 
             LOG << "received slice " << seq << std::endl;
 
-            int sliceLen = (std::min)(static_cast<uint32_t>(len - (curr - buf)), packet->len - sizeof(Packet));
+            int sliceLen = packet->len - sizeof(Packet);
             memcpy(curr, packet->data, sliceLen);
             curr += sliceLen;
 

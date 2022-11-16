@@ -78,7 +78,8 @@ bool Unreliable::recv(void *buf, int len) {
 std::unique_ptr<Packet> Unreliable::recv() {
     auto packet = reinterpret_cast<Packet *>(new uint8_t[MAX_PACKET_SIZE]{});
     if (!recv(packet, MAX_PACKET_SIZE) ||
-        packet->len > MAX_PACKET_SIZE) {
+        packet->len > MAX_PACKET_SIZE ||
+        packet->len == 0) {
         return nullptr;
     }
 
