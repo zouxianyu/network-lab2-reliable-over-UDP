@@ -95,7 +95,7 @@ inline static uint32_t seqFlip(uint32_t seq) {
 }
 
 bool Reliable::send(uint8_t *buf, int len) {
-    const auto waitTime = std::chrono::milliseconds(20);
+    const auto waitTime = std::chrono::milliseconds(50);
     const int dataSize = MAX_PACKET_SIZE - sizeof(Packet);
 
     uint32_t seq = 0;
