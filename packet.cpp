@@ -16,7 +16,7 @@ static uint16_t checksum(void *buf, int len) {
 }
 
 bool PacketHelper::isValidPacket(const std::unique_ptr<Packet> &packet) {
-    return checksum(packet.get(), packet->len) == 0;
+    return checksum(packet.get(), ROUND_UP(packet->len, sizeof(uint16_t))) == 0;
 }
 
 std::unique_ptr<Packet> PacketHelper::makePacket(
