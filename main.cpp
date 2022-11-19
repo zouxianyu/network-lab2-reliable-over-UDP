@@ -42,11 +42,12 @@ int main(int argc, char *argv[]) {
     }
 
     // receiver
-    // program.exe client <server ip> <server port>
-    if (argc == 4 && std::string_view(argv[1]) == "client") {
+    // program.exe client <server ip> <server port> <filename>
+    if (argc == 5 && std::string_view(argv[1]) == "client") {
         // arg parse
         std::string ip = argv[2];
         uint16_t port = std::stoi(argv[3]);
+        std::string filename = argv[4];
 
         const auto recvBufferSize = 20 * 1024 * 1024; // 20M
         auto mem = std::make_unique<uint8_t[]>(recvBufferSize);
@@ -56,7 +57,7 @@ int main(int argc, char *argv[]) {
         LOG << "received " << received << " bytes" << std::endl;
 
         // write to file
-        std::ofstream f("received.zip", std::ios::binary);
+        std::ofstream f(filename, std::ios::binary);
         f.write((char *) mem.get(), received);
     }
 
