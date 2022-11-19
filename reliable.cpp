@@ -46,7 +46,7 @@ Reliable ReliableHelper::listen(uint16_t port) {
     LOG << "sent SYN_ACK to client" << std::endl;
 
     LOG << "connect established" << std::endl;
-    return unreliable;
+    return {std::move(unreliable)};
 }
 
 Reliable ReliableHelper::connect(const std::string &ip, uint16_t port) {
@@ -84,7 +84,7 @@ Reliable ReliableHelper::connect(const std::string &ip, uint16_t port) {
 
     LOG << "connect established" << std::endl;
 
-    return unreliable;
+    return {std::move(unreliable)};
 }
 
 Reliable::Reliable(Unreliable unreliable)
