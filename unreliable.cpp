@@ -43,7 +43,7 @@ bool Unreliable::send(void *buf, int len) {
     return true;
 }
 
-bool Unreliable::send(std::unique_ptr<Packet> packet) {
+bool Unreliable::send(const std::unique_ptr<Packet> &packet) {
     return send(packet.get(), packet->len);
 }
 

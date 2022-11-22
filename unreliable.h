@@ -27,7 +27,7 @@ public:
 
     bool send(void *buf, int len);
 
-    bool send(std::unique_ptr<Packet> packet);
+    bool send(const std::unique_ptr<Packet> &packet);
 
     bool recv(void *buf, int len);
 
