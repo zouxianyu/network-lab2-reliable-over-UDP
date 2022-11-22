@@ -6,7 +6,7 @@ set(CMAKE_CXX_STANDARD 17)
 add_executable(reliable_over_udp
         main.cpp
         unreliable.cpp
-        reliable.cpp
+        reliable_GBN.cpp
         packet.cpp
         )
 

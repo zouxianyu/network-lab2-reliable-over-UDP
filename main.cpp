@@ -3,7 +3,8 @@
 #include <thread>
 #include <winsock2.h>
 #include "log.h"
-#include "reliable.h"
+#include "reliable_GBN.h"
+#include "reliable_helper.h"
 
 int main(int argc, char *argv[]) {
     WSADATA wsaData;
@@ -37,8 +38,8 @@ int main(int argc, char *argv[]) {
         f.read((char *) mem.get(), fileSize);
 
         // send file
-        Reliable reliable = ReliableHelper::listen(port);
-        reliable.send(mem.get(), fileSize);
+        std::unique_ptr<IReliable> reliable = ReliableHelper::listen<ReliableGBN>(port);
+        reliable->send(mem.get(), fileSize);
     }
 
     // receiver
@@ -52,8 +53,8 @@ int main(int argc, char *argv[]) {
         const auto recvBufferSize = 20 * 1024 * 1024; // 20M
         auto mem = std::make_unique<uint8_t[]>(recvBufferSize);
         memset(mem.get(), 0xff, recvBufferSize);
-        Reliable reliable = ReliableHelper::connect(ip, port);
-        int received = reliable.recv(mem.get(), recvBufferSize);
+        std::unique_ptr<IReliable> reliable = ReliableHelper::connect<ReliableGBN>(ip, port);
+        int received = reliable->recv(mem.get(), recvBufferSize);
         LOG << "received " << received << " bytes" << std::endl;
 
         // write to file

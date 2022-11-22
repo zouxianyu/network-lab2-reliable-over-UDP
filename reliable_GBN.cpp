@@ -2,99 +2,16 @@
 #include <condition_variable>
 #include <utility>
 #include "log.h"
-#include "reliable.h"
+#include "reliable_GBN.h"
 
-Reliable ReliableHelper::listen(uint16_t port) {
-    SOCKET s = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
-    if (s == INVALID_SOCKET) {
-        LOG << "socket() failed: " << WSAGetLastError() << std::endl;
-        throw std::runtime_error("socket() failed");
-    }
-
-    sockaddr_in listenAddr;
-    listenAddr.sin_family = AF_INET;
-    listenAddr.sin_port = htons(port);
-    listenAddr.sin_addr.s_addr = INADDR_ANY;
-
-    if (bind(s, (sockaddr *) &listenAddr, sizeof(listenAddr)) == SOCKET_ERROR) {
-        LOG << "bind() failed: " << WSAGetLastError() << std::endl;
-        throw std::runtime_error("bind() failed");
-    }
-
-    Unreliable unreliable(s);
-
-    // 1. recv SYN
-    std::unique_ptr<Packet> packet = unreliable.recv();
-
-    if (packet == nullptr ||
-        !PacketHelper::isValidPacket(packet) ||
-        packet->type != PacketType::SYN) {
-
-        LOG << "failed to receive packet from client" << std::endl;
-        throw std::runtime_error("failed to receive packet from client");
-    }
-
-    LOG << "received SYN from client" << std::endl;
-
-    // 2. send SYN_ACK
-
-    if (!unreliable.send(PacketHelper::makePacket(PacketType::SYN_ACK))) {
-        LOG << "failed to send SYN_ACK to client" << std::endl;
-        throw std::runtime_error("failed to send SYN_ACK to client");
-    }
-
-    LOG << "sent SYN_ACK to client" << std::endl;
-
-    LOG << "connect established" << std::endl;
-    return {std::move(unreliable)};
-}
-
-Reliable ReliableHelper::connect(const std::string &ip, uint16_t port) {
-    SOCKET s = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
-    if (s == INVALID_SOCKET) {
-        LOG << "socket() failed: " << WSAGetLastError() << std::endl;
-        throw std::runtime_error("socket() failed");
-    }
-
-    // create UDP socket wrapper, given the remote addr (server addr)
-    Unreliable unreliable(s, ip, port);
-
-    // 1. send SYN
-
-    if (!unreliable.send(PacketHelper::makePacket(PacketType::SYN))) {
-        LOG << "failed to send SYN to server" << std::endl;
-        throw std::runtime_error("failed to send SYN to server");
-    }
-
-    LOG << "sent SYN to server" << std::endl;
-
-    // 2. recv SYN_ACK
-
-    std::unique_ptr<Packet> packet = unreliable.recv();
-
-    if (packet == nullptr ||
-        !PacketHelper::isValidPacket(packet) ||
-        packet->type != PacketType::SYN_ACK) {
-
-        LOG << "failed to receive packet from server" << std::endl;
-        throw std::runtime_error("failed to receive packet from server");
-    }
-
-    LOG << "received SYN_ACK from server" << std::endl;
-
-    LOG << "connect established" << std::endl;
-
-    return {std::move(unreliable)};
-}
-
-Reliable::Reliable(Unreliable unreliable)
+ReliableGBN::ReliableGBN(Unreliable unreliable)
         : unreliable(std::move(unreliable)) {}
 
 inline static uint32_t seqFlip(uint32_t seq) {
     return (~seq) & 1;
 }
 
-bool Reliable::send(uint8_t *buf, int len) {
+bool ReliableGBN::send(uint8_t *buf, int len) {
     const auto waitTime = std::chrono::milliseconds(50);
     const int dataSize = MAX_PACKET_SIZE - sizeof(Packet);
 
@@ -163,7 +80,7 @@ bool Reliable::send(uint8_t *buf, int len) {
     return true;
 }
 
-int Reliable::recv(uint8_t *buf, int len) {
+int ReliableGBN::recv(uint8_t *buf, int len) {
     uint32_t seq = 0;
     uint8_t *curr = buf;
     while (true) {
