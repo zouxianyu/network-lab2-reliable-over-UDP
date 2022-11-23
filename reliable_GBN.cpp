@@ -3,6 +3,7 @@
 #include <utility>
 #include <deque>
 #include "log.h"
+#include "packet.h"
 #include "reliable_GBN.h"
 
 const auto waitTime = std::chrono::milliseconds(50);
@@ -18,6 +19,7 @@ class Window {
 
     // window queue
     uint32_t base;
+    uint32_t end;
     std::deque<std::unique_ptr<Packet>> queue;
     std::mutex m;
     std::condition_variable cvQueue;
@@ -26,38 +28,32 @@ class Window {
     std::thread timeoutThread;
     std::condition_variable cvTimeout;
 
-    // status
-    std::atomic_bool exit;
 public:
-    Window(uint32_t base, uint32_t N, Unreliable &unreliable)
-            : base(base), N(N), unreliable(unreliable), exit(false) {
+    Window(uint32_t base, uint32_t end, uint32_t N, Unreliable &unreliable)
+            : base(base), end(end), N(N), unreliable(unreliable) {
 
         // create timeout thread, for resending packets
-        timeoutThread = std::thread([this, &unreliable] {
+        timeoutThread = std::thread([this] {
             std::unique_lock lock(m);
-            while (!exit) {
+            while (true) {
                 // set timer
-                if (cvTimeout.wait_for(lock, waitTime) == std::cv_status::timeout &&
-                    !queue.empty()) {
+                if (cvTimeout.wait_for(lock, waitTime) == std::cv_status::timeout) {
+
+                    if (this->base == this->end) {
+                        break;
+                    }
+
                     LOG << "timeout" << std::endl;
                     for (auto &packet: queue) {
-                        unreliable.send(packet);
+                        this->unreliable.send(packet);
                     }
                 }
             }
         });
     }
 
-    void stopTimer() {
-        // stop timeout thread
-        exit = true;
-        cvTimeout.notify_one();
+    void waitTimerToExit() {
         timeoutThread.join();
-    }
-
-    void waitForEmpty() {
-        std::unique_lock lock(m);
-        cvQueue.wait(lock, [this] { return queue.empty(); });
     }
 
     void push(std::unique_ptr<Packet> packet) {
@@ -76,13 +72,13 @@ public:
 
         LOG << "received ack " << ack << std::endl;
 
-        // TODO: 解决累计确认问题
-        if (ack - 1 == base) {
+        if (base < ack) {
+            while (base < ack) {
+                LOG << "move window" << std::endl;
 
-            LOG << "move window" << std::endl;
-
-            queue.pop_front();
-            base++;
+                queue.pop_front();
+                base++;
+            }
             cvTimeout.notify_all(); // reset timer
             cvQueue.notify_all(); // send next packet / notify finished
         }
@@ -95,21 +91,24 @@ ReliableGBN::ReliableGBN(Unreliable unreliable)
 bool ReliableGBN::send(uint8_t *buf, int len) {
     const int dataSize = MAX_PACKET_SIZE - sizeof(Packet);
     uint32_t seq = 0;
+    uint32_t end = ROUND_UP(len, dataSize) / dataSize;
 
-    Window window(seq, N, unreliable);
+    Window window(seq, end, N, unreliable);
 
-    std::thread ackReceiver([this, &window] {
+    std::thread ackReceiver([this, &window, &end] {
         while (true) {
             auto packet = unreliable.recv();
             if (packet &&
                 PacketHelper::isValidPacket(packet) &&
                 packet->type == PacketType::ACK) {
                 window.recvAck(packet->num);
+
+                if (packet->num == end) {
+                    break;
+                }
             }
         }
     });
-
-    ackReceiver.detach();
 
     for (uint8_t *sliceBuf = buf;
          sliceBuf < buf + len;
@@ -125,39 +124,40 @@ bool ReliableGBN::send(uint8_t *buf, int len) {
         ));
     }
 
-    window.waitForEmpty();
+    ackReceiver.join();
+    window.waitTimerToExit();
 
-    window.stopTimer();
-
+    LOG << "sending FIN" << std::endl;
     if (!unreliable.send(PacketHelper::makePacket(PacketType::FIN))) {
         LOG << "failed to send FIN" << std::endl;
         return false;
     }
 
+    LOG << "receiving FIN_ACK" << std::endl;
     std::unique_ptr<Packet> packet = unreliable.recv();
 
     if (packet == nullptr ||
         !PacketHelper::isValidPacket(packet) ||
         packet->type != PacketType::FIN_ACK) {
-        LOG << "failed to receive FIN_ACK" << std::endl;
         return false;
     }
-
-    LOG << "sent all slices successfully" << std::endl;
 
     return true;
 }
 
 int ReliableGBN::recv(uint8_t *buf, int len) {
     uint32_t seq = 0;
+    bool exit = false;
     std::mutex m;
-    std::atomic_bool exit = false;
 
     std::thread t([this, &m, &seq, &exit]{
-        while (!exit) {
+        while (true) {
             std::this_thread::sleep_for(sendAckDelay);
 
             std::lock_guard lock(m);
+            if (exit) {
+                break;
+            }
 
             LOG << "sending ACK " << seq << std::endl;
 
@@ -176,7 +176,7 @@ int ReliableGBN::recv(uint8_t *buf, int len) {
 
         auto packet = unreliable.recv();
 
-        std::lock_guard lock(m);
+        std::unique_lock lock(m);
 
         if (packet &&
             PacketHelper::isValidPacket(packet) &&
@@ -200,6 +200,7 @@ int ReliableGBN::recv(uint8_t *buf, int len) {
 
             unreliable.send(PacketHelper::makePacket(PacketType::FIN_ACK));
             exit = true;
+            lock.unlock();
             t.join();
             break;
         } else {

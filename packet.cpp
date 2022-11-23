@@ -1,7 +1,5 @@
 #include "packet.h"
 
-#define ROUND_UP(a, b) (((uint32_t)(a) + ((uint32_t)(b) - 1)) & ~((uint32_t)(b) - 1))
-
 static uint16_t checksum(void *buf, int len) {
     uint32_t sum = 0;
     const uint16_t *p = reinterpret_cast<uint16_t *>(buf);
