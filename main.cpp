@@ -4,6 +4,7 @@
 #include <winsock2.h>
 #include "log.h"
 #include "reliable_GBN.h"
+#include "reliable_SR.h"
 #include "reliable_helper.h"
 
 int main(int argc, char *argv[]) {
@@ -38,7 +39,7 @@ int main(int argc, char *argv[]) {
         f.read((char *) mem.get(), fileSize);
 
         // send file
-        std::unique_ptr<IReliable> reliable = ReliableHelper::listen<ReliableGBN>(port);
+        std::unique_ptr<IReliable> reliable = ReliableHelper::listen<ReliableSR>(port);
         reliable->send(mem.get(), fileSize);
     }
 
@@ -53,7 +54,7 @@ int main(int argc, char *argv[]) {
         const auto recvBufferSize = 20 * 1024 * 1024; // 20M
         auto mem = std::make_unique<uint8_t[]>(recvBufferSize);
         memset(mem.get(), 0xff, recvBufferSize);
-        std::unique_ptr<IReliable> reliable = ReliableHelper::connect<ReliableGBN>(ip, port);
+        std::unique_ptr<IReliable> reliable = ReliableHelper::connect<ReliableSR>(ip, port);
         int received = reliable->recv(mem.get(), recvBufferSize);
         LOG << "received " << received << " bytes" << std::endl;
 
