@@ -6,11 +6,11 @@
 #include "packet.h"
 #include "reliable_GBN.h"
 
-const auto waitTime = std::chrono::milliseconds(50);
-const auto sendAckDelay = std::chrono::milliseconds(10);
-const uint32_t N = 3;
+const static auto waitTime = std::chrono::milliseconds(50);
+const static auto sendAckDelay = std::chrono::milliseconds(10);
+const static uint32_t N = 3;
 
-class Window {
+class WindowGBN {
     // window size
     const uint32_t N;
 
@@ -29,7 +29,7 @@ class Window {
     std::condition_variable cvTimeout;
 
 public:
-    Window(uint32_t base, uint32_t end, uint32_t N, Unreliable &unreliable)
+    WindowGBN(uint32_t base, uint32_t end, uint32_t N, Unreliable &unreliable)
             : base(base), end(end), N(N), unreliable(unreliable) {
 
         // create timeout thread, for resending packets
@@ -93,7 +93,7 @@ bool ReliableGBN::send(uint8_t *buf, int len) {
     uint32_t seq = 0;
     uint32_t end = ROUND_UP(len, dataSize) / dataSize;
 
-    Window window(seq, end, N, unreliable);
+    WindowGBN window(seq, end, N, unreliable);
 
     std::thread ackReceiver([this, &window, &end] {
         while (true) {
@@ -150,7 +150,7 @@ int ReliableGBN::recv(uint8_t *buf, int len) {
     bool exit = false;
     std::mutex m;
 
-    std::thread t([this, &m, &seq, &exit]{
+    std::thread t([this, &m, &seq, &exit] {
         while (true) {
             std::this_thread::sleep_for(sendAckDelay);
 
