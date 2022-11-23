@@ -2,8 +2,9 @@
 #define RELIABLE_OVER_UDP_LOG_H
 
 #include <iostream>
+#include <syncstream>
 #include <iomanip>
 
-#define LOG (std::cout << "[" << std::setw(15) << __FILE__ << ":" << __LINE__ << "] ")
+#define LOG (std::osyncstream(std::cout) << "[" << std::setw(50) << __FUNCTION__ << "] ")
 
 #endif //RELIABLE_OVER_UDP_LOG_H
