@@ -2,6 +2,7 @@
 #include <condition_variable>
 #include <utility>
 #include <deque>
+#include <set>
 #include <functional>
 #include "log.h"
 #include "unreliable.h"
@@ -83,19 +84,12 @@ public:
         }
     }
 
-    void waitEmpty() {
-        std::unique_lock lock(m);
-
-        cvQueue.wait(lock, [this] { return queue.empty(); });
-    }
-
 };
 
 ReliableSR::ReliableSR(Unreliable unreliable)
         : unreliable(std::move(unreliable)) {}
 
 bool ReliableSR::send(uint8_t *buf, int len) {
-    const auto waitTime = std::chrono::milliseconds(50);
     const int dataSize = MAX_PACKET_SIZE - sizeof(Packet);
 
     uint32_t seq = 0;
@@ -103,7 +97,12 @@ bool ReliableSR::send(uint8_t *buf, int len) {
 
     WindowSR window(seq, end, N);
 
-    std::thread ackReceiver([this, &window, &end] {
+    std::set<uint32_t> allSeqs;
+    for (uint32_t i = seq; i < end; i++) {
+        allSeqs.insert(i);
+    }
+
+    std::thread ackReceiver([this, &window, &allSeqs] {
         while (true) {
             auto packet = unreliable.recv();
             if (packet &&
@@ -113,12 +112,16 @@ bool ReliableSR::send(uint8_t *buf, int len) {
                 LOG << "recveive ACK " << packet->num << std::endl;
 
                 window.recvAck(packet->num);
+                allSeqs.erase(packet->num);
 
-                if (packet->num == end - 1) {
+                if (allSeqs.empty()) {
                     break;
                 }
+            } else {
+                LOG << "invalid ACK" << std::endl;
             }
         }
+        LOG << "receive ACK thread exit" << std::endl;
     });
 
     for (uint8_t *sliceBuf = buf;
@@ -129,7 +132,7 @@ bool ReliableSR::send(uint8_t *buf, int len) {
 
         auto task = std::make_shared<Task>();
 
-        task->sender = [this, seq, sliceBuf, sliceLen, waitTime](std::shared_ptr<Task> task) {
+        task->sender = [this, seq, sliceBuf, sliceLen](std::shared_ptr<Task> task) {
             std::unique_lock lock(task->m);
             do {
                 LOG << "sending slice " << seq << std::endl;
@@ -148,8 +151,8 @@ bool ReliableSR::send(uint8_t *buf, int len) {
 
     }
 
+    // waiting for received all ACKs
     ackReceiver.join();
-    window.waitEmpty();
 
     LOG << "sending FIN" << std::endl;
     if (!unreliable.send(PacketHelper::makePacket(PacketType::FIN))) {

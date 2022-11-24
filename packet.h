@@ -6,7 +6,7 @@
 #include <memory>
 
 #define MAX_PACKET_SIZE (10240)
-#define ROUND_UP(a, b) (((uint32_t)(a) + ((uint32_t)(b) - 1)) & ~((uint32_t)(b) - 1))
+#define ROUND_UP(a, b) (((uint32_t)(a) + ((uint32_t)(b) - 1)) / (uint32_t)(b) * (uint32_t)(b))
 
 #pragma pack(push, 1)
 

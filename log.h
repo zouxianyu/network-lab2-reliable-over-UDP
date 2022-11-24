@@ -5,6 +5,7 @@
 #include <syncstream>
 #include <iomanip>
 
-#define LOG (std::osyncstream(std::cout) << "[" << std::setw(50) << __FUNCTION__ << "] ")
+#define LOG (std::osyncstream(std::cout) << \
+            "[" << std::left << std::setw(50) <<__FUNCTION__ << std::right << "] ")
 
 #endif //RELIABLE_OVER_UDP_LOG_H
