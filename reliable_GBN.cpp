@@ -65,6 +65,8 @@ public:
 
         unreliable.send(packet);
         queue.push_back(std::move(packet));
+
+        LOG << "after push, queue size = " << queue.size() << std::endl;
     }
 
     void recvAck(uint32_t ack) {
@@ -79,6 +81,7 @@ public:
                 queue.pop_front();
                 base++;
             }
+            LOG << "after move, queue size = " << queue.size() << std::endl;
             cvTimeout.notify_all(); // reset timer
             cvQueue.notify_all(); // send next packet / notify finished
         }

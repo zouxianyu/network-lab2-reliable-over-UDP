@@ -38,6 +38,8 @@ public:
 
         queue.push_back(task);
 
+        LOG << "after push, queue size = " << queue.size() << std::endl;
+
         std::thread senderThread(task->sender, task);
         senderThread.detach();
     }
@@ -80,6 +82,7 @@ public:
                 base++;
                 queue.pop_front();
             }
+            LOG << "after move, queue size = " << queue.size() << std::endl;
             cvQueue.notify_all();
         }
     }
