@@ -5,6 +5,7 @@
 #include "log.h"
 #include "reliable_GBN.h"
 #include "reliable_SR.h"
+#include "reliable_RENO.h"
 #include "reliable_helper.h"
 
 int main(int argc, char *argv[]) {
@@ -45,6 +46,8 @@ int main(int argc, char *argv[]) {
             reliable = ReliableHelper::listen<ReliableGBN>(port);
         } else if (method == "SR") {
             reliable = ReliableHelper::listen<ReliableSR>(port);
+        } else if (method == "RENO") {
+            reliable = ReliableHelper::listen<ReliableRENO>(port);
         } else {
             std::cout << "unknown method: " << method << std::endl;
             return 1;
@@ -69,6 +72,8 @@ int main(int argc, char *argv[]) {
             reliable = ReliableHelper::connect<ReliableGBN>(ip, port);
         } else if (method == "SR") {
             reliable = ReliableHelper::connect<ReliableSR>(ip, port);
+        } else if (method == "RENO") {
+            reliable = ReliableHelper::connect<ReliableRENO>(ip, port);
         } else {
             std::cout << "unknown method: " << method << std::endl;
             return 1;
