@@ -8,6 +8,7 @@ add_executable(reliable_over_udp
         unreliable.cpp
         reliable_GBN.cpp
         reliable_SR.cpp
+        reliable_RENO.cpp
         packet.cpp
         )
 
